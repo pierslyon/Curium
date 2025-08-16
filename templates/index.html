@@ -1,11 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Placeholder</title>
+  <meta charset="utf-8" />
+  <title>Curium Office Status</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; margin:0; padding:20px; }
+    h1 { text-align:center; margin: 10px 0 20px; }
+    .event { background:#1f1f1f; padding:12px; margin:8px 0; border-radius:8px; }
+    .time { color:#9ad; font-weight:bold; }
+    .subject { font-size:1.2em; margin-top:4px; }
+    .empty { text-align:center; color:#aaa; margin-top:30px; }
+  </style>
 </head>
 <body>
-    <h1>Placeholder for index.html</h1>
+  <h1>Curium Office Status</h1>
+  {% if events and events|length > 0 %}
+    {% for e in events %}
+      <div class="event">
+        <div class="time">
+          {{ e.start.dateTime }} → {{ e.end.dateTime }}
+        </div>
+        <div class="subject">{{ e.subject or "No title" }}</div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">No meetings in the next 7 days.</div>
+  {% endif %}
 </body>
 </html>
