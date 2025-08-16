@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_HOME="/home/pi/curium-office-status"
+AUTOSTART_DIR="$HOME/.config/autostart"
+AUTOSTART_FILE="$AUTOSTART_DIR/curium-kiosk.desktop"
+AUTOSTART_OFF="$AUTOSTART_FILE.off"
+
+SVC1="curium-backend.service"
+SVC2="curium-panel.service"
+
+have_svc() { systemctl list-unit-files | awk '{print $1}' | grep -qx "$1"; }
+svc_stop()  { have_svc "$1" && sudo systemctl stop "$1"  || true; }
+svc_start() { have_svc "$1" && sudo systemctl start "$1" || true; }
+svc_enable_now() { have_svc "$1" && sudo systemctl enable --now "$1" || true; }
+svc_disable() { have_svc "$1" && sudo systemctl disable "$1" || true; }
+
+kill_chromium() {
+  pkill -f chromium || true
+  pkill chromium-browse || true
+  pkill chromium || true
+}
+
+ensure_autostart_dir() { mkdir -p "$AUTOSTART_DIR"; }
+
+do_off() {
+  echo "[kiosk] Turning OFF (this session + next boot)…"
+  kill_chromium
+  svc_stop "$SVC1"; svc_stop "$SVC2"
+  ensure_autostart_dir
+  if [[ -f "$AUTOSTART_FILE" ]]; then
+    mv "$AUTOSTART_FILE" "$AUTOSTART_OFF"
+    echo "[kiosk] Autostart disabled ($AUTOSTART_OFF)"
+  else
+    echo "[kiosk] Autostart already disabled."
+  fi
+  echo "[kiosk] Done."
+}
+
+do_on() {
+  echo "[kiosk] Turning ON (enable + start)…"
+  ensure_autostart_dir
+  if [[ -f "$AUTOSTART_OFF" ]]; then
+    mv "$AUTOSTART_OFF" "$AUTOSTART_FILE"
+    echo "[kiosk] Autostart enabled ($AUTOSTART_FILE)"
+  else
+    echo "[kiosk] Autostart already enabled."
+  fi
+  svc_enable_now "$SVC1" || true
+  svc_enable_now "$SVC2" || true
+
+  # Start immediately (if desktop is running and launcher exists)
+  if [[ -n "${DISPLAY-}" && -f "$APP_HOME/kiosk-launch.sh" ]]; then
+    echo "[kiosk] Launching kiosk now…"
+    "$APP_HOME/kiosk-launch.sh" >/dev/null 2>&1 &
+    disown || true
+  else
+    echo "[kiosk] Kiosk will launch on next login/boot."
+  fi
+  echo "[kiosk] Done."
+}
+
+do_restart() {
+  echo "[kiosk] Restarting kiosk…"
+  kill_chromium
+  svc_stop "$SVC1"; svc_stop "$SVC2"
+  svc_start "$SVC1"; svc_start "$SVC2"
+  if [[ -n "${DISPLAY-}" && -f "$APP_HOME/kiosk-launch.sh" ]]; then
+    "$APP_HOME/kiosk-launch.sh" >/dev/null 2>&1 &
+    disown || true
+  fi
+  echo "[kiosk] Done."
+}
+
+do_status() {
+  echo "=== Services ==="
+  have_svc "$SVC1" && systemctl is-active "$SVC1" || echo "$SVC1 (not installed)"
+  have_svc "$SVC2" && systemctl is-active "$SVC2" || echo "$SVC2 (not installed)"
+  echo "=== Autostart ==="
+  if [[ -f "$AUTOSTART_FILE" ]]; then echo "enabled ($AUTOSTART_FILE)";
+  elif [[ -f "$AUTOSTART_OFF" ]]; then echo "disabled ($AUTOSTART_OFF)";
+  else echo "no autostart file found"; fi
+  echo "=== Chromium PIDs ==="
+  pgrep -laf chromium || echo "not running"
+}
+
+do_logs() {
+  local svc=""
+  if have_svc "$SVC1"; then svc="$SVC1"; elif have_svc "$SVC2"; then svc="$SVC2"; fi
+  if [[ -n "$svc" ]]; then
+    sudo journalctl -u "$svc" -n 200 --no-pager
+  else
+    echo "No panel service installed."
+  fi
+}
+
+usage() {
+  cat <<EOF
+Usage: kiosk [on|off|restart|status|logs]
+  on       Enable autostart, enable & start service, launch now if possible
+  off      Kill Chromium, stop service(s), disable autostart
+  restart  Restart service(s) and relaunch kiosk
+  status   Show service/autostart/Chromium state
+  logs     Show last 200 lines of backend logs
+EOF
+}
+
+case "${1-}" in
+  on) do_on ;;
+  off) do_off ;;
+  restart) do_restart ;;
+  status) do_status ;;
+  logs) do_logs ;;
+  *) usage; exit 1 ;;
+esac
