@@ -22,14 +22,15 @@
     .badge{background:#1f2635;border:1px solid #2b3550;color:#cfe1ff;padding:6px 10px;border-radius:10px;font-weight:700}
     .when{color:var(--accent);font-weight:800}
     .subj{font-size:20px;font-weight:700;margin-top:4px}
+    .list{display:grid;gap:10px;margin-top:4px}
+    .ev{background:#161b23;border:1px solid #262f40;border-radius:10px;padding:10px}
 
-    .strip{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
-    .d{background:#161b23;border:1px solid #262f40;border-radius:10px;padding:10px;text-align:center}
-    .d .lbl{color:#cfd6e2;font-size:14px;margin-bottom:6px}
-    .d svg{width:26px;height:26px;fill:#e1e8f7;margin:4px 0}
-    .d .t{font-size:13px}
-    .d .hi{color:var(--accent);font-weight:700}
-    .d .lo{color:#94a3b8}
+    .strip{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+    .hcell{background:#161b23;border:1px solid #262f40;border-radius:10px;padding:10px;text-align:center}
+    .hcell .lbl{color:#cfd6e2;font-size:14px;margin-bottom:6px}
+    .hcell svg{width:26px;height:26px;fill:#e1e8f7;margin:4px 0}
+    .hcell .t{font-size:13px}
+    .hcell .t strong{color:var(--accent)}
 
     .footer{color:var(--muted);text-align:center;font-size:12px;margin-top:4px}
   </style>
@@ -50,74 +51,4 @@
     <symbol id="wx-unknown" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"/><path d="M12 10v3"/><circle cx="12" cy="18" r="1"/></symbol>
   </svg>
 
-  <header>
-    <!-- Temperature top-left -->
-    <div class="h-left">
-      {% if weather.temp_c is not none %}{{ weather.temp_c }}°C{% else %}—°C{% endif %}
-    </div>
-    <div class="h-title">Curium Office Status</div>
-    <!-- Weather icon top-right -->
-    <div class="h-right">
-      <svg class="wx"><use href="#wx-{{ weather.icon or 'unknown' }}"></use></svg>
-    </div>
-  </header>
-
-  <main>
-    <div class="row">
-      <!-- Now / Next card -->
-      <section class="card nownext">
-        <h2>Now / Next</h2>
-
-        <div class="blk">
-          <div class="badge">Now</div>
-          {% if current %}
-            {% set s = current.start.dateTime | to_local %}
-            {% set t = current.end.dateTime   | to_local %}
-            <div>
-              <div class="when">{{ s|fmt_time }} – {{ t|fmt_time }} · {{ s|fmt_date }}</div>
-              <div class="subj">{{ current.subject or "Busy" }}</div>
-            </div>
-          {% else %}
-            <div><div class="when">Available</div><div class="subj">No meeting right now</div></div>
-          {% endif %}
-        </div>
-
-        <div class="blk">
-          <div class="badge">Next</div>
-          {% if nxt %}
-            {% set s2 = nxt.start.dateTime | to_local %}
-            {% set t2 = nxt.end.dateTime   | to_local %}
-            <div>
-              <div class="when">{{ s2|fmt_time }} – {{ t2|fmt_time }} · {{ s2|fmt_date }}</div>
-              <div class="subj">{{ nxt.subject or "Meeting" }}</div>
-            </div>
-          {% else %}
-            <div><div class="when">None</div><div class="subj">No upcoming meeting</div></div>
-          {% endif %}
-        </div>
-
-        <div class="footer">Last updated {{ now|fmt_time }} · {{ now|fmt_date }}</div>
-      </section>
-
-      <!-- 7-day mini weather strip -->
-      <section class="card">
-        <h2 style="margin:0 0 10px;color:#cfd6e2;font-size:18px;">7-Day Forecast</h2>
-        <div class="strip">
-          {% for d in weather.daily %}
-            <div class="d">
-              <div class="lbl">{{ d.label }}</div>
-              <svg><use href="#wx-{{ d.icon | default('unknown') }}"></use></svg>
-              <div class="t"><span class="hi">{{ d.tmax }}°</span> / <span class="lo">{{ d.tmin }}°</span></div>
-            </div>
-          {% endfor %}
-          {% if not weather.daily or weather.daily|length == 0 %}
-            <div class="d" style="grid-column:1/-1;color:#aab;">Weather unavailable</div>
-          {% endif %}
-        </div>
-      </section>
-    </div>
-  </main>
-</body>
-</html>
-
-
+  <
