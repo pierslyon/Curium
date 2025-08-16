@@ -1,12 +1,15 @@
 from flask import Flask, render_template, jsonify
 from datetime import datetime, timedelta, timezone, date
-try:
-    from zoneinfo import ZoneInfo            # Python 3.9+
-except Exception:                             # Fallback for older Pythons
-    from backports.zoneinfo import ZoneInfo
-
 import os, requests, msal
 from dotenv import load_dotenv
+
+# --- Timezone handling: zoneinfo if available, else pytz (no compile needed) ---
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+    TZ = ZoneInfo("Europe/London")
+except Exception:
+    import pytz
+    TZ = pytz.timezone("Europe/London")
 
 load_dotenv()
 
@@ -22,12 +25,10 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 # Birmingham, UK
 BHM_LAT = 52.489471
 BHM_LON = -1.898575
-TZ = ZoneInfo("Europe/London")
 
 app = Flask(__name__)
 
 def get_access_token():
-    """Acquire app-only token via client credentials using MSAL."""
     cca = msal.ConfidentialClientApplication(
         CLIENT_ID, authority=AUTHORITY, client_credential=CLIENT_SECRET
     )
@@ -58,7 +59,6 @@ def get_events_next_7_days():
         return []
 
 def icon_id_for_wmo(code: int) -> str:
-    # Map WMO weather codes to our SVG icon ids
     if code == 0: return "sun"
     if code in (1,): return "few"
     if code in (2,): return "partly"
@@ -72,7 +72,6 @@ def icon_id_for_wmo(code: int) -> str:
     return "unknown"
 
 def get_weather_birmingham():
-    """Open-Meteo: current temp + 7-day daily codes (no API key needed)."""
     try:
         r = requests.get(
             "https://api.open-meteo.com/v1/forecast",
@@ -98,7 +97,6 @@ def get_weather_birmingham():
         tmin = daily.get("temperature_2m_min", []) or []
 
         for i in range(min(len(times), 7)):
-            # times[i] is 'YYYY-MM-DD' for daily values
             try:
                 lbl = date.fromisoformat(times[i]).strftime("%a")
             except Exception:
@@ -125,9 +123,15 @@ def get_weather_birmingham():
 def to_local(iso_str):
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z","+00:00"))
+        # zoneinfo or pytz tzinfo both work with astimezone()
         return dt.astimezone(TZ)
     except Exception:
-        return datetime.now(TZ)
+        # fallback to "now" to avoid template errors
+        # if using pytz: localize properly, but we only need a tz-aware now()
+        try:
+            return datetime.now(TZ)
+        except Exception:
+            return datetime.now(timezone.utc)
 
 @app.template_filter("fmt_time")
 def fmt_time(dt):
@@ -151,24 +155,29 @@ def health():
 def index():
     events = get_events_next_7_days()
     weather = get_weather_birmingham()
-    now = datetime.now(TZ)
+
+    # "now/next" in Europe/London
+    try:
+        now_local = datetime.now(TZ)
+    except Exception:
+        now_local = datetime.now(timezone.utc)
 
     current = None
     nxt = None
     for e in events:
         s = datetime.fromisoformat(e["start"]["dateTime"].replace("Z","+00:00")).astimezone(TZ)
         t = datetime.fromisoformat(e["end"]["dateTime"].replace("Z","+00:00")).astimezone(TZ)
-        if s <= now < t:
+        if s <= now_local < t:
             current = e
             break
     if not current:
         for e in events:
             s = datetime.fromisoformat(e["start"]["dateTime"].replace("Z","+00:00")).astimezone(TZ)
-            if s > now:
+            if s > now_local:
                 nxt = e
                 break
 
-    return render_template("index.html", now=now, current=current, nxt=nxt, events=events, weather=weather)
+    return render_template("index.html", now=now_local, current=current, nxt=nxt, events=events, weather=weather)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
